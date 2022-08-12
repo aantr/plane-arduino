@@ -471,7 +471,7 @@ void write_current_state(){
 }
 
 void update_button1(){
-  int state = get_button_state(0);
+  int state = get_button_state(1);
   if (state && !prev_button_state1){
     // switch fixed motor
     fixed_motor ^= 1;
@@ -489,12 +489,14 @@ void update_leds(){
     if (rmanager.transmission_time <= 1000){
       leds.setPixelColor(2, leds.Color(0, 100, 0));
     }
-    if (fixed_motor){
-      leds.setPixelColor(0, leds.Color(0, 0, 100));
-    }
   } else {
     leds.setPixelColor(1, leds.Color(100, 0, 0));
   }
+
+  if (fixed_motor){
+    leds.setPixelColor(0, leds.Color(0, 0, 100));
+  }
+
   leds.show();
 }
 
@@ -504,7 +506,7 @@ void update_connected(){
 
 void update_transmitter(){
 
-  // if (DEBUG) debug_state();
+  if (DEBUG) debug_state();
 
   if (rmanager.connected && millis() - check_connection_timer >= check_connection_timeout || 
       !rmanager.connected && millis() - check_connection_timer >= check_connection_timeout_disconnected){
