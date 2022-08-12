@@ -214,7 +214,7 @@ struct RadioManager{
     }
     radio.setPALevel(RF24_PA_LOW);
     
-    // radio.setChannel(0x6B);
+    radio.setChannel(0x6B);
     radio.setDataRate(RF24_1MBPS);
 
     radio.powerUp();
@@ -374,7 +374,7 @@ unsigned long check_connection_timeout = 300;
 unsigned long check_connection_timeout_disconnected = 100;
 
 unsigned long button_update_timer = 0;
-unsigned long button_update_timeout = 30;
+unsigned long button_update_timeout = 65;
 
 unsigned long update_state_timer = 0;
 unsigned long update_state_timeout = 80;
@@ -481,8 +481,6 @@ void update_transmitter(){
     }
   }
 
-  // if (rmanager.connected) { 
-
   if (millis() - update_state_timer >= update_state_timeout){
     update_state_timer = millis();
 
@@ -496,7 +494,6 @@ void update_transmitter(){
     update_leds();
   }
     
-  // }
   
 }
 

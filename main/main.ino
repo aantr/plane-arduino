@@ -422,7 +422,7 @@ unsigned long check_connection_timeout = 300;
 unsigned long check_connection_timeout_disconnected = 100;
 
 unsigned long button_update_timer = 0;
-unsigned long button_update_timeout = 30;
+unsigned long button_update_timeout = 65;
 
 unsigned long update_state_timer = 0;
 unsigned long update_state_timeout = 80;
@@ -430,6 +430,8 @@ unsigned long update_state_timeout = 80;
 int prev_button_state1 = 0;
 int fixed_motor = 0;
 int fixed_motor_value = 0;
+int fixed_side_value = 0;
+int fixed_height_value = 0;
 
 void debug_state(){
   Serial.print("LH: ");
@@ -456,15 +458,18 @@ void debug_state(){
 void write_current_state(){
   // if (DEBUG) Serial.println("Sent current state");
   int left_vertical = get_left_vertical();
-  if (left_vertical < 10) left_vertical = 0;
   int right_horizontal = get_right_horizontal();
-  if (abs(right_horizontal) < 10) right_horizontal = 0;
   int right_vertical = get_right_vertical();
-  if (abs(right_vertical) < 10) right_vertical = 0;
 
   if (fixed_motor){
+    right_vertical = fixed_height_value;
+    right_horizontal = fixed_side_value;
     left_vertical = fixed_motor_value;
   }
+
+  if (left_vertical < 10) left_vertical = 0;
+  if (abs(right_horizontal) < 10) right_horizontal = 0;
+  if (abs(right_vertical) < 10) right_vertical = 0;
 
   Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
   rmanager.update_transmitter(packet);
@@ -476,6 +481,8 @@ void update_button1(){
     // switch fixed motor
     fixed_motor ^= 1;
     if (fixed_motor){
+      fixed_height_value = get_right_vertical();
+      fixed_side_value = get_right_horizontal();
       fixed_motor_value = get_left_vertical();
     }
   }
