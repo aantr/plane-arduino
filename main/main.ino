@@ -186,28 +186,6 @@ struct RadioManager{
     }else{
       if (!radio.begin(RADIO_PIN_TRANSMITTER[0], RADIO_PIN_TRANSMITTER[1])) {if (DEBUG) Serial.println(F("[Transmitter] radio hardware is not responding"));while (1) {}}
     }
-    /*
-    radio.setAutoAck(1);
-    radio.setRetries(0, 15);
-    radio.enableAckPayload();
-    
-    if (sizeof(Packet) > 32){
-      if (DEBUG) Serial.print("Too big packet size: ");
-      if (DEBUG) Serial.println(sizeof(Packet));
-      while (1){}
-    }
-    
-    radio.setPayloadSize(sizeof(Packet));
-  
-    if (!radio_receiver) radio.openWritingPipe(radio_address[0]);
-    else radio.openReadingPipe(1, radio_address[1]);
-    
-    radio.setChannel(0x60);
-    radio.setPALevel(RF24_PA_MIN);
-    radio.setDataRate(RF24_250KBPS);
-
-    radio.powerUp();
-    */
 
     radio.setAutoAck(1);
     radio.setRetries(0, 15);
@@ -229,21 +207,6 @@ struct RadioManager{
     radio.setDataRate(RF24_1MBPS);
 
     radio.powerUp();
-    
-    /*
-    if (sizeof(Packet) > 32){
-      if (DEBUG) Serial.print("Too big packet size: ");
-      if (DEBUG) Serial.println(sizeof(Packet));
-      while (1){}
-    }
-    
-    radio.setPayloadSize(sizeof(Packet));
-
-    radio.setPALevel(RF24_PA_LOW);
-
-    radio.openWritingPipe(radio_address[radio_receiver]);
-    radio.openReadingPipe(1, radio_address[!radio_receiver]);
-    */
 
     if (radio_receiver) radio.startListening();
     else radio.stopListening();
@@ -458,6 +421,9 @@ unsigned long check_connection_timer = 0;
 unsigned long check_connection_timeout = 300;
 unsigned long check_connection_timeout_disconnected = 100;
 
+unsigned long button_update_timer = 0;
+unsigned long button_update_timeout = 30;
+
 unsigned long update_state_timer = 0;
 unsigned long update_state_timeout = 80;
 
@@ -485,6 +451,23 @@ void debug_state(){
   Serial.print(get_button_state(1));
   Serial.print(", ");
   Serial.println(analogRead(button_pin_1));
+}
+
+void write_current_state(){
+  // if (DEBUG) Serial.println("Sent current state");
+  int left_vertical = get_left_vertical();
+  if (left_vertical < 10) left_vertical = 0;
+  int right_horizontal = get_right_horizontal();
+  if (abs(right_horizontal) < 10) right_horizontal = 0;
+  int right_vertical = get_right_vertical();
+  if (abs(right_vertical) < 10) right_vertical = 0;
+
+  if (fixed_motor){
+    left_vertical = fixed_motor_value;
+  }
+
+  Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
+  rmanager.update_transmitter(packet);
 }
 
 void update_button1(){
@@ -519,11 +502,9 @@ void update_connected(){
   update_leds();
 }
 
-
-
 void update_transmitter(){
 
-  if (DEBUG) debug_state();
+  // if (DEBUG) debug_state();
 
   if (rmanager.connected && millis() - check_connection_timer >= check_connection_timeout || 
       !rmanager.connected && millis() - check_connection_timer >= check_connection_timeout_disconnected){
@@ -544,28 +525,18 @@ void update_transmitter(){
 
   // if (rmanager.connected) { 
 
-    if (millis() - update_state_timer >= update_state_timeout){
-      update_state_timer = millis();
+  if (millis() - update_state_timer >= update_state_timeout){
+    update_state_timer = millis();
 
-      // send current state
-      // if (DEBUG) Serial.println("Sent current state");
-      int left_vertical = get_left_vertical();
-      if (left_vertical < 10) left_vertical = 0;
-      int right_horizontal = get_right_horizontal();
-      if (abs(right_horizontal) < 10) right_horizontal = 0;
-      int right_vertical = get_right_vertical();
-      if (abs(right_vertical) < 10) right_vertical = 0;
+    write_current_state();
 
-      if (fixed_motor){
-        left_vertical = fixed_motor_value;
-      }
+  }
 
-      Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
-      rmanager.update_transmitter(packet);
-
-      update_button1();
-      update_leds();
-    }
+  if (millis() - button_update_timer >= button_update_timeout){
+    button_update_timer = millis();
+    update_button1();
+    update_leds();
+  }
     
   // }
   
