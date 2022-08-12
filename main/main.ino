@@ -112,7 +112,7 @@ int get_button_state(int index){
   if (index == 0){
     return digitalRead(button_pin_0) ^ 1;
   } else if (index == 1){
-    return (analogRead(button_pin_1) >= 512) ^ 1;
+    return (analogRead(button_pin_1) >= 75) ^ 1;
   }
   return 0;
 }
@@ -157,7 +157,7 @@ void init_transmitter(){
 const int RADIO_PIN_RECEIVER[2] = {7, 8}, RADIO_PIN_TRANSMITTER[2] = {9, 10};
 
 RF24 radio;
-uint8_t radio_address[][6] = {"12gr", "21rg"};
+byte radio_address[][6] = {"1Node", "2Node"};
 bool radio_receiver = 0;
 
 const int size_data = 12;
@@ -174,6 +174,7 @@ struct Packet{
 struct RadioManager{
 
   int connected = 0;
+  unsigned long transmission_time = 0;
   long long received = 0;
   long long failed = 0;
   long long transmitted = 0;
@@ -185,9 +186,11 @@ struct RadioManager{
     }else{
       if (!radio.begin(RADIO_PIN_TRANSMITTER[0], RADIO_PIN_TRANSMITTER[1])) {if (DEBUG) Serial.println(F("[Transmitter] radio hardware is not responding"));while (1) {}}
     }
-
-    radio.setPALevel(RF24_PA_LOW);
-
+    /*
+    radio.setAutoAck(1);
+    radio.setRetries(0, 15);
+    radio.enableAckPayload();
+    
     if (sizeof(Packet) > 32){
       if (DEBUG) Serial.print("Too big packet size: ");
       if (DEBUG) Serial.println(sizeof(Packet));
@@ -196,9 +199,52 @@ struct RadioManager{
     
     radio.setPayloadSize(sizeof(Packet));
   
+    if (!radio_receiver) radio.openWritingPipe(radio_address[0]);
+    else radio.openReadingPipe(1, radio_address[1]);
+    
+    radio.setChannel(0x60);
+    radio.setPALevel(RF24_PA_MIN);
+    radio.setDataRate(RF24_250KBPS);
+
+    radio.powerUp();
+    */
+
+    radio.setAutoAck(1);
+    radio.setRetries(0, 15);
+    // radio.enableAckPayload();
+
+    if (sizeof(Packet) > 32){
+      if (DEBUG) Serial.print("Too big packet size: ");
+      if (DEBUG) Serial.println(sizeof(Packet));
+      while (1){}
+    }
+    
+    radio.setPayloadSize(sizeof(Packet));
+
     radio.openWritingPipe(radio_address[radio_receiver]);
     radio.openReadingPipe(1, radio_address[!radio_receiver]);
-   
+    radio.setPALevel(RF24_PA_LOW);
+    
+    radio.setChannel(0x6B);
+    radio.setDataRate(RF24_1MBPS);
+
+    radio.powerUp();
+    
+    /*
+    if (sizeof(Packet) > 32){
+      if (DEBUG) Serial.print("Too big packet size: ");
+      if (DEBUG) Serial.println(sizeof(Packet));
+      while (1){}
+    }
+    
+    radio.setPayloadSize(sizeof(Packet));
+
+    radio.setPALevel(RF24_PA_LOW);
+
+    radio.openWritingPipe(radio_address[radio_receiver]);
+    radio.openReadingPipe(1, radio_address[!radio_receiver]);
+    */
+
     if (radio_receiver) radio.startListening();
     else radio.stopListening();
     
@@ -306,7 +352,7 @@ struct RadioManager{
           if (DEBUG) Serial.print(end_timer - start_timer);    
           if (DEBUG) Serial.println(F(" us."));               
           transmitted++;
-          
+          transmission_time = end_timer - start_timer;
           success = 1;
           return Packet();
         }
@@ -395,7 +441,6 @@ struct RadioManager{
       if (DEBUG) Serial.println(packet.data[0]);
     } else if (packet.type == 10){
       set_hight_target((int) packet.data[0] - 100);
-      Serial.println((int) packet.data[1] - 100); //////////////////////////////
       set_side_target((int) packet.data[1] - 100);
       set_motor_value((int) packet.data[2]);
 
@@ -411,9 +456,14 @@ RadioManager rmanager;
 
 unsigned long check_connection_timer = 0;
 unsigned long check_connection_timeout = 300;
+unsigned long check_connection_timeout_disconnected = 100;
 
 unsigned long update_state_timer = 0;
-unsigned long update_state_timeout = 100;
+unsigned long update_state_timeout = 80;
+
+int prev_button_state1 = 0;
+int fixed_motor = 0;
+int fixed_motor_value = 0;
 
 void debug_state(){
   Serial.print("LH: ");
@@ -432,15 +482,35 @@ void debug_state(){
   Serial.print(get_button_state(0));
   Serial.print(", ");
   Serial.print("B1: ");
-  Serial.println(get_button_state(1));
+  Serial.print(get_button_state(1));
+  Serial.print(", ");
+  Serial.println(analogRead(button_pin_1));
+}
+
+void update_button1(){
+  int state = get_button_state(0);
+  if (state && !prev_button_state1){
+    // switch fixed motor
+    fixed_motor ^= 1;
+    if (fixed_motor){
+      fixed_motor_value = get_left_vertical();
+    }
+  }
+  prev_button_state1 = state;
 }
 
 void update_leds(){
   leds.clear();
   if (rmanager.connected){
-    leds.setPixelColor(0, leds.Color(0, 150, 0));
+    leds.setPixelColor(1, leds.Color(0, 100, 0));
+    if (rmanager.transmission_time <= 1000){
+      leds.setPixelColor(2, leds.Color(0, 100, 0));
+    }
+    if (fixed_motor){
+      leds.setPixelColor(0, leds.Color(0, 0, 100));
+    }
   } else {
-    leds.setPixelColor(0, leds.Color(150, 0, 0));
+    leds.setPixelColor(1, leds.Color(100, 0, 0));
   }
   leds.show();
 }
@@ -449,11 +519,14 @@ void update_connected(){
   update_leds();
 }
 
+
+
 void update_transmitter(){
 
-  // if (DEBUG) debug_state();
+  if (DEBUG) debug_state();
 
-  if (millis() - check_connection_timer >= check_connection_timeout){
+  if (rmanager.connected && millis() - check_connection_timer >= check_connection_timeout || 
+      !rmanager.connected && millis() - check_connection_timer >= check_connection_timeout_disconnected){
     int prev_connected = rmanager.connected;
     check_connection_timer = millis();
     int res = 1;
@@ -469,11 +542,7 @@ void update_transmitter(){
     }
   }
 
-  if (!rmanager.connected){
-
-
-
-  } else { 
+  // if (rmanager.connected) { 
 
     if (millis() - update_state_timer >= update_state_timeout){
       update_state_timer = millis();
@@ -487,11 +556,18 @@ void update_transmitter(){
       int right_vertical = get_right_vertical();
       if (abs(right_vertical) < 10) right_vertical = 0;
 
-      Packet packet = rmanager.get_full_packet(right_vertical, right_horizontal, left_vertical);
+      if (fixed_motor){
+        left_vertical = fixed_motor_value;
+      }
+
+      Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
       rmanager.update_transmitter(packet);
+
+      update_button1();
+      update_leds();
     }
     
-  }
+  // }
   
 }
 
@@ -521,9 +597,10 @@ void update_receiver(){
 
 void setup() {
 
-  Serial.begin(9600);
-  while (!Serial) {}
-  
+  if (DEBUG){
+    Serial.begin(9600);
+    while (!Serial) {}
+  }
   EEPROM.get(1, radio_receiver);
   radio_receiver = bool(radio_receiver);
 
