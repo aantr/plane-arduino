@@ -112,7 +112,7 @@ int get_button_state(int index){
   if (index == 0){
     return digitalRead(button_pin_0) ^ 1;
   } else if (index == 1){
-    return (analogRead(button_pin_1) >= 75) ^ 1;
+    return (analogRead(button_pin_1) >= 512) ^ 1;
   }
   return 0;
 }
@@ -157,7 +157,7 @@ void init_transmitter(){
 const int RADIO_PIN_RECEIVER[2] = {7, 8}, RADIO_PIN_TRANSMITTER[2] = {9, 10};
 
 RF24 radio;
-byte radio_address[][6] = {"1Node", "2Node"};
+uint8_t radio_address[][6] = {"12gr", "21rg"};
 bool radio_receiver = 0;
 
 const int size_data = 12;
@@ -174,7 +174,6 @@ struct Packet{
 struct RadioManager{
 
   int connected = 0;
-  unsigned long transmission_time = 0;
   long long received = 0;
   long long failed = 0;
   long long transmitted = 0;
@@ -187,9 +186,7 @@ struct RadioManager{
       if (!radio.begin(RADIO_PIN_TRANSMITTER[0], RADIO_PIN_TRANSMITTER[1])) {if (DEBUG) Serial.println(F("[Transmitter] radio hardware is not responding"));while (1) {}}
     }
 
-    radio.setAutoAck(1);
-    radio.setRetries(0, 15);
-    // radio.enableAckPayload();
+    radio.setPALevel(RF24_PA_LOW);
 
     if (sizeof(Packet) > 32){
       if (DEBUG) Serial.print("Too big packet size: ");
@@ -198,16 +195,10 @@ struct RadioManager{
     }
     
     radio.setPayloadSize(sizeof(Packet));
-
+  
     radio.openWritingPipe(radio_address[radio_receiver]);
     radio.openReadingPipe(1, radio_address[!radio_receiver]);
-    radio.setPALevel(RF24_PA_LOW);
-    
-    radio.setChannel(0x6B);
-    radio.setDataRate(RF24_1MBPS);
-
-    radio.powerUp();
-
+   
     if (radio_receiver) radio.startListening();
     else radio.stopListening();
     
@@ -315,7 +306,7 @@ struct RadioManager{
           if (DEBUG) Serial.print(end_timer - start_timer);    
           if (DEBUG) Serial.println(F(" us."));               
           transmitted++;
-          transmission_time = end_timer - start_timer;
+          
           success = 1;
           return Packet();
         }
@@ -404,6 +395,7 @@ struct RadioManager{
       if (DEBUG) Serial.println(packet.data[0]);
     } else if (packet.type == 10){
       set_hight_target((int) packet.data[0] - 100);
+      Serial.println((int) packet.data[1] - 100); //////////////////////////////
       set_side_target((int) packet.data[1] - 100);
       set_motor_value((int) packet.data[2]);
 
@@ -419,19 +411,9 @@ RadioManager rmanager;
 
 unsigned long check_connection_timer = 0;
 unsigned long check_connection_timeout = 300;
-unsigned long check_connection_timeout_disconnected = 100;
-
-unsigned long button_update_timer = 0;
-unsigned long button_update_timeout = 65;
 
 unsigned long update_state_timer = 0;
-unsigned long update_state_timeout = 80;
-
-int prev_button_state1 = 0;
-int fixed_motor = 0;
-int fixed_motor_value = 0;
-int fixed_side_value = 0;
-int fixed_height_value = 0;
+unsigned long update_state_timeout = 100;
 
 void debug_state(){
   Serial.print("LH: ");
@@ -450,60 +432,16 @@ void debug_state(){
   Serial.print(get_button_state(0));
   Serial.print(", ");
   Serial.print("B1: ");
-  Serial.print(get_button_state(1));
-  Serial.print(", ");
-  Serial.println(analogRead(button_pin_1));
-}
-
-void write_current_state(){
-  // if (DEBUG) Serial.println("Sent current state");
-  int left_vertical = get_left_vertical();
-  int right_horizontal = get_right_horizontal();
-  int right_vertical = get_right_vertical();
-
-  if (fixed_motor){
-    right_vertical = fixed_height_value;
-    right_horizontal = fixed_side_value;
-    left_vertical = fixed_motor_value;
-  }
-
-  if (left_vertical < 10) left_vertical = 0;
-  if (abs(right_horizontal) < 10) right_horizontal = 0;
-  if (abs(right_vertical) < 10) right_vertical = 0;
-
-  Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
-  rmanager.update_transmitter(packet);
-}
-
-void update_button1(){
-  int state = get_button_state(1);
-  if (state && !prev_button_state1){
-    // switch fixed motor
-    fixed_motor ^= 1;
-    if (fixed_motor){
-      fixed_height_value = get_right_vertical();
-      fixed_side_value = get_right_horizontal();
-      fixed_motor_value = get_left_vertical();
-    }
-  }
-  prev_button_state1 = state;
+  Serial.println(get_button_state(1));
 }
 
 void update_leds(){
   leds.clear();
   if (rmanager.connected){
-    leds.setPixelColor(1, leds.Color(0, 100, 0));
-    if (rmanager.transmission_time <= 1000){
-      leds.setPixelColor(2, leds.Color(0, 100, 0));
-    }
+    leds.setPixelColor(0, leds.Color(0, 150, 0));
   } else {
-    leds.setPixelColor(1, leds.Color(100, 0, 0));
+    leds.setPixelColor(0, leds.Color(150, 0, 0));
   }
-
-  if (fixed_motor){
-    leds.setPixelColor(0, leds.Color(0, 0, 100));
-  }
-
   leds.show();
 }
 
@@ -513,10 +451,9 @@ void update_connected(){
 
 void update_transmitter(){
 
-  if (DEBUG) debug_state();
+  // if (DEBUG) debug_state();
 
-  if (rmanager.connected && millis() - check_connection_timer >= check_connection_timeout || 
-      !rmanager.connected && millis() - check_connection_timer >= check_connection_timeout_disconnected){
+  if (millis() - check_connection_timer >= check_connection_timeout){
     int prev_connected = rmanager.connected;
     check_connection_timer = millis();
     int res = 1;
@@ -532,22 +469,29 @@ void update_transmitter(){
     }
   }
 
-  // if (rmanager.connected) { 
+  if (!rmanager.connected){
 
-  if (millis() - update_state_timer >= update_state_timeout){
-    update_state_timer = millis();
 
-    write_current_state();
 
-  }
+  } else { 
 
-  if (millis() - button_update_timer >= button_update_timeout){
-    button_update_timer = millis();
-    update_button1();
-    update_leds();
-  }
+    if (millis() - update_state_timer >= update_state_timeout){
+      update_state_timer = millis();
+
+      // send current state
+      // if (DEBUG) Serial.println("Sent current state");
+      int left_vertical = get_left_vertical();
+      if (left_vertical < 10) left_vertical = 0;
+      int right_horizontal = get_right_horizontal();
+      if (abs(right_horizontal) < 10) right_horizontal = 0;
+      int right_vertical = get_right_vertical();
+      if (abs(right_vertical) < 10) right_vertical = 0;
+
+      Packet packet = rmanager.get_full_packet(-right_vertical, right_horizontal, left_vertical);
+      rmanager.update_transmitter(packet);
+    }
     
-  // }
+  }
   
 }
 
