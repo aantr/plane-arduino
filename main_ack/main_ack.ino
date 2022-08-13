@@ -5,11 +5,12 @@
 #include <EEPROM.h>
 #include <Servo.h>
 
-// receiver setup
+// receiver setup --- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-Servo hight_servo, side_servo, motor_servo;
+const int RADIO_PIN_RECEIVER[2] = {7, 8};
 const int HIGHT_SERVO_PIN = 4, SIDE_SERVO_PIN = 5, MOTOR_SERVO_PIN = 9;
 int hight_servo_bound[2] = {0, 115}, side_servo_bound[2] = {35, 145};
+Servo hight_servo, side_servo, motor_servo;
 
 // int motor_microseconds_bound[2] = {1100, 1500}; // [1100, 1500]
 int motor_microseconds_bound[2] = {1100, 1300}; // [1100, 1500], half of power
@@ -96,17 +97,17 @@ void init_receiver(){
 
 }
 
-// transmitter setup
+// transmitter setup --- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 #include <Adafruit_NeoPixel.h>
-const int led_pin = 6;
-const int num_leds = 3;
-Adafruit_NeoPixel leds(num_leds, led_pin, NEO_GRB + NEO_KHZ800);
-
+const int RADIO_PIN_TRANSMITTER[2] = {9, 10};
 const int stick_pin[4] = {A3, A2, A1, A0};
 const int stick_bound[4][3] = { {115, 650, 1023 - 50}, {85, 540, 1023 - 50}, {75, 580, 1023 - 50}, {75, 565, 1023 - 50} };
 const int button_pin_0 = 8;
 const int button_pin_1 = A4;
+const int led_pin = 6;
+const int num_leds = 3;
+Adafruit_NeoPixel leds(num_leds, led_pin, NEO_GRB + NEO_KHZ800);
 
 int get_button_state(int index){
   if (index == 0){
@@ -153,8 +154,6 @@ void init_transmitter(){
   update_leds();
 
 }
-
-const int RADIO_PIN_RECEIVER[2] = {7, 8}, RADIO_PIN_TRANSMITTER[2] = {9, 10};
 
 RF24 radio;
 byte radio_address[][6] = {"1Node", "2Node"};
