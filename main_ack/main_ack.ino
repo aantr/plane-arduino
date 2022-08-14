@@ -1,5 +1,5 @@
-#define DEBUG 1
-// #define DEBUG 0
+// #define DEBUG 1
+#define DEBUG 0 // less usage of memory because of Serial
 
 #include "RF24.h"
 #include <EEPROM.h>
@@ -13,7 +13,7 @@ int hight_servo_bound[2] = {0, 115}, side_servo_bound[2] = {35, 145};
 Servo hight_servo, side_servo, motor_servo;
 
 // int motor_microseconds_bound[2] = {1100, 1500}; // [1100, 1500]
-int motor_microseconds_bound[2] = {1100, 1300}; // [1100, 1500], half of power
+int motor_microseconds_bound[2] = {1100, 1300}; // [1100, 1500]         [ half of power ]
 
 void set_hight_value(int value){ // [-100, 100]
   value = min(100, max(-100, value));
@@ -195,7 +195,7 @@ struct RadioManager{
 
     // radio.setAutoAck(1);
     radio.setRetries(5, 5);
-    radio.enableAckPayload(); // change form non-ack
+    radio.enableAckPayload(); // change from non-ack
 
     if (sizeof(Packet) > 32){
       if (DEBUG) Serial.print("Too big packet size: ");
@@ -362,21 +362,32 @@ struct RadioManager{
   }
   
 };
+
+struct Timer{
+  unsigned long timer = 0;
+  unsigned long timeout = 0;
+  Timer(unsigned long timeout) : timeout(timeout){
+
+  }
+  int update(unsigned long time){
+    if (time - timer >= timeout){
+      timer = time;
+      return 1;
+    }
+    return 0;
+  }
+};
+
 // common
 
 RadioManager rmanager;
 
 // transmitter update
 
-unsigned long check_connection_timer = 0;
-unsigned long check_connection_timeout = 300;
-unsigned long check_connection_timeout_disconnected = 100;
-
-unsigned long button_update_timer = 0;
-unsigned long button_update_timeout = 65;
-
-unsigned long update_state_timer = 0;
-unsigned long update_state_timeout = 80;
+Timer check_connection_timer(300), check_connection_disconnected_timer (120);
+Timer button_update_timer (70);
+Timer update_state_timer (55);
+Timer leds_timer (80);
 
 int prev_button_state1 = 0;
 int fixed_motor = 0;
@@ -385,6 +396,7 @@ int fixed_side_value = 0;
 int fixed_height_value = 0;
 
 void debug_state(){
+  if (DEBUG){
   Serial.print("LH: ");
   Serial.print(get_left_horizontal());
   Serial.print(", ");
@@ -404,6 +416,8 @@ void debug_state(){
   Serial.print(get_button_state(1));
   Serial.print(", ");
   Serial.println(analogRead(button_pin_1));
+  }
+  
 }
 
 void write_current_state(){
@@ -426,7 +440,7 @@ void write_current_state(){
   rmanager.update_transmitter(packet);
 }
 
-void update_button1(){
+void update_button(){
   int state = get_button_state(1);
   if (state && !prev_button_state1){
     // switch fixed motor
@@ -466,10 +480,9 @@ void update_transmitter(){
 
   if (DEBUG) debug_state();
 
-  if (rmanager.connected && millis() - check_connection_timer >= check_connection_timeout || 
-      !rmanager.connected && millis() - check_connection_timer >= check_connection_timeout_disconnected){
+  if (rmanager.connected && check_connection_timer.update(millis()) || 
+      !rmanager.connected && check_connection_disconnected_timer.update(millis())){
     int prev_connected = rmanager.connected;
-    check_connection_timer = millis();
     int res = 1;
     Packet check_connection;
     check_connection.type = 255;
@@ -480,16 +493,15 @@ void update_transmitter(){
     }
   }
 
-  if (millis() - update_state_timer >= update_state_timeout){
-    update_state_timer = millis();
-
+  if (update_state_timer.update(millis())){
     write_current_state();
-
   }
 
-  if (millis() - button_update_timer >= button_update_timeout){
-    button_update_timer = millis();
-    update_button1();
+  if (button_update_timer.update(millis())){
+    update_button();
+  }
+
+  if (leds_timer.update(millis())){
     update_leds();
   }
     
