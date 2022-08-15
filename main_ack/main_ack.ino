@@ -1,5 +1,5 @@
 // [0, 1, 2]. DEBUG 0 is less usage of memory because of Serial
-#define DEBUG 1
+#define DEBUG 0
 
 #include "RF24.h"
 #include <EEPROM.h>
@@ -446,13 +446,19 @@ int prev_button_state_0 = get_button_state(0);
 int prev_button_state_1 = get_button_state(1);
 
 void update_button(){
-  int state = get_button_state(1);
-  if (state && !prev_button_state_1){
-    // switch fixed motor and control
+  int state = get_button_state(0);
+  if (state && !prev_button_state_0){
+    // switch fixed motor
     fixed_motor ^= 1;
     if (fixed_motor){
       fixed_motor_value = get_left_vertical();
     }
+  }
+  prev_button_state_0 = state;
+
+  state = get_button_state(1);
+  if (state && !prev_button_state_1){
+    // switch fixed control
     fixed_control ^= 1;
     if (fixed_control){
       fixed_height_value = get_right_vertical();
@@ -482,11 +488,11 @@ void update_leds(){
   }*/
   uint32_t color_2 = leds.Color(0, 0, 0);
   if (fixed_motor && fixed_control){
-    color_2 = leds.Color(200, 0, 200);
+    color_2 = leds.Color(200, 100, 200);
   } else if (fixed_motor){
-    color_2 = leds.Color(200, 0, 0);
+    color_2 = leds.Color(200, 100, 0);
   } else if (fixed_control) {
-    color_2 = leds.Color(0, 0, 200);
+    color_2 = leds.Color(0, 100, 200);
   }
   leds.setPixelColor(0, color_2);
 
