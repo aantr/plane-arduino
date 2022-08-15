@@ -1,5 +1,5 @@
-// #define DEBUG 1
-#define DEBUG 0 // less usage of memory because of Serial
+// [0, 1, 2]. DEBUG 0 is less usage of memory because of Serial
+#define DEBUG 1
 
 #include "RF24.h"
 #include <EEPROM.h>
@@ -102,7 +102,7 @@ void init_receiver(){
 #include <Adafruit_NeoPixel.h>
 const int RADIO_PIN_TRANSMITTER[2] = {9, 10};
 const int stick_pin[4] = {A3, A2, A1, A0};
-const int stick_bound[4][3] = { {115, 650, 1023 - 50}, {85, 540, 1023 - 50}, {75, 580, 1023 - 50}, {75, 565, 1023 - 50} };
+const int stick_bound[4][3] = { {115, 635, 1023 - 50}, {85, 540, 1023 - 50}, {75, 580, 1023 - 50}, {75, 575, 1023 - 50} };
 const int button_pin_0 = 8;
 const int button_pin_1 = A4;
 const int led_pin = 6;
@@ -287,17 +287,17 @@ struct RadioManager{
           ack = 1;
         }
         unsigned long end_timer = micros(); 
-        if (DEBUG) Serial.print(F("Transmission successful! "));      
-        if (DEBUG) Serial.print(F("Time to transmit = "));
-        if (DEBUG) Serial.print(end_timer - start_timer);    
-        if (DEBUG) Serial.println(F(" us."));               
+        if (DEBUG > 1) Serial.print(F("Transmission successful! "));      
+        if (DEBUG > 1) Serial.print(F("Time to transmit = "));
+        if (DEBUG > 1) Serial.print(end_timer - start_timer);    
+        if (DEBUG > 1) Serial.println(F(" us."));               
         transmitted++;
         transmission_time = end_timer - start_timer;
         success = 1;
         return ack_packet;
         
       } else {
-        if (DEBUG) Serial.println(F("Transmission failed or timed out")); 
+        if (DEBUG > 1) Serial.println(F("Transmission failed or timed out")); 
         failed++;
       }
       success = 0;
@@ -384,14 +384,14 @@ RadioManager rmanager;
 
 // transmitter update
 
-Timer check_connection_timer(300), check_connection_disconnected_timer (120);
+Timer check_connection_timer(300), check_connection_disconnected_timer (200);
 Timer button_update_timer (70);
 Timer update_state_timer (55);
 Timer leds_timer (80);
 
-int prev_button_state1 = 0;
 int fixed_motor = 0;
 int fixed_motor_value = 0;
+int fixed_control = 0;
 int fixed_side_value = 0;
 int fixed_height_value = 0;
 
@@ -427,9 +427,11 @@ void write_current_state(){
   int right_vertical = get_right_vertical();
 
   if (fixed_motor){
+    left_vertical = fixed_motor_value;
+  }
+  if (fixed_control){
     right_vertical = fixed_height_value;
     right_horizontal = fixed_side_value;
-    left_vertical = fixed_motor_value;
   }
 
   if (left_vertical < 10) left_vertical = 0;
@@ -440,19 +442,27 @@ void write_current_state(){
   rmanager.update_transmitter(packet);
 }
 
+int prev_button_state_0 = get_button_state(0);
+int prev_button_state_1 = get_button_state(1);
+
 void update_button(){
   int state = get_button_state(1);
-  if (state && !prev_button_state1){
-    // switch fixed motor
+  if (state && !prev_button_state_1){
+    // switch fixed motor and control
     fixed_motor ^= 1;
     if (fixed_motor){
-      fixed_height_value = get_right_vertical();
-      fixed_side_value = get_right_horizontal();
       fixed_motor_value = get_left_vertical();
     }
+    fixed_control ^= 1;
+    if (fixed_control){
+      fixed_height_value = get_right_vertical();
+      fixed_side_value = get_right_horizontal();
+    }
   }
-  prev_button_state1 = state;
+  prev_button_state_1 = state;
 }
+
+uint16_t hue_fixed_led = 0;
 
 void update_leds(){
   leds.clear();
@@ -464,10 +474,21 @@ void update_leds(){
   } else {
     leds.setPixelColor(1, leds.Color(100, 0, 0));
   }
-
+  /*
   if (fixed_motor){
-    leds.setPixelColor(0, leds.Color(0, 0, 100));
+    // leds.setPixelColor(0, leds.ColorHSV(hue_fixed_led, 255, 150));
+    // hue_fixed_led += 1 << 11;
+    
+  }*/
+  uint32_t color_2 = leds.Color(0, 0, 0);
+  if (fixed_motor && fixed_control){
+    color_2 = leds.Color(200, 0, 200);
+  } else if (fixed_motor){
+    color_2 = leds.Color(200, 0, 0);
+  } else if (fixed_control) {
+    color_2 = leds.Color(0, 0, 200);
   }
+  leds.setPixelColor(0, color_2);
 
   leds.show();
 }
