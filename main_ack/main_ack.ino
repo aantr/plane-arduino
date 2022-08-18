@@ -378,16 +378,53 @@ struct Timer{
   }
 };
 
+struct Button {
+
+  const int RELEASE_TIMEOUT = 200;
+  int was_click = 0; // if multiple click started
+  unsigned long timer = 0;
+
+  int cur_state; // 1 - pressed, 0 - released
+  int pressed = 0;
+  int clicked = 0;
+  int count = 0;
+
+  Button (int cur_state) : cur_state(cur_state){
+
+  }
+  void update(int state){
+    pressed = state && state != cur_state;
+    if (was_click && millis() - timer >= RELEASE_TIMEOUT){
+      clicked = 1;
+      was_click = 0;
+    }else{
+      clicked = 0;
+    }
+    if (pressed){
+      if (!was_click){
+        was_click = 1;
+        count = 0;
+      }
+      timer = millis();
+      count++;
+    }
+
+    cur_state = state;
+
+  }
+
+};
+
 // common
 
 RadioManager rmanager;
 
 // transmitter update
 
-Timer check_connection_timer(300), check_connection_disconnected_timer (200);
-Timer button_update_timer (70);
-Timer update_state_timer (55);
-Timer leds_timer (80);
+Timer check_connection_timer(400), check_connection_disconnected_timer (300);
+Timer button_update_timer (40);
+Timer update_state_timer (60);
+Timer leds_timer (90);
 
 int fixed_motor = 0;
 int fixed_motor_value = 0;
@@ -442,43 +479,41 @@ void write_current_state(){
   rmanager.update_transmitter(packet);
 }
 
-int prev_button_state_0 = get_button_state(0);
-int prev_button_state_1 = get_button_state(1);
+Button button_0 (get_button_state(0));
+Button button_1 (get_button_state(1));
 
 void update_button(){
-  int state = get_button_state(0);
-  if (state && !prev_button_state_0){
+  button_0.update(get_button_state(0));
+  if (button_1.clicked && button_1.count == 2){
+    fixed_control ^= 1;
+    if (fixed_control){
+      fixed_side_value = get_right_horizontal();
+      fixed_height_value = get_right_vertical();
+    }
+  }
+  button_1.update(get_button_state(1));
+  if (button_1.clicked && button_1.count == 1){
     // switch fixed motor
     fixed_motor ^= 1;
     if (fixed_motor){
       fixed_motor_value = get_left_vertical();
     }
   }
-  prev_button_state_0 = state;
-
-  state = get_button_state(1);
-  if (state && !prev_button_state_1){
-    // switch fixed control
-    fixed_control ^= 1;
-    if (fixed_control){
-      fixed_height_value = get_right_vertical();
-      fixed_side_value = get_right_horizontal();
-    }
-  }
-  prev_button_state_1 = state;
 }
 
 uint16_t hue_fixed_led = 0;
 
+int BRIGHTNESS = 255;
+
 void update_leds(){
   leds.clear();
   if (rmanager.connected){
-    leds.setPixelColor(1, leds.Color(0, 100, 0));
+    leds.setPixelColor(1, leds.Color(0, BRIGHTNESS, 0));
     if (rmanager.transmission_time <= 1000){
-      leds.setPixelColor(2, leds.Color(0, 100, 0));
+      leds.setPixelColor(2, leds.Color(0, BRIGHTNESS, 0));
     }
   } else {
-    leds.setPixelColor(1, leds.Color(100, 0, 0));
+    leds.setPixelColor(1, leds.Color(BRIGHTNESS, 0, 0));
   }
   /*
   if (fixed_motor){
@@ -488,11 +523,11 @@ void update_leds(){
   }*/
   uint32_t color_2 = leds.Color(0, 0, 0);
   if (fixed_motor && fixed_control){
-    color_2 = leds.Color(200, 100, 200);
+    color_2 = leds.Color(BRIGHTNESS, BRIGHTNESS / 2, BRIGHTNESS);
   } else if (fixed_motor){
-    color_2 = leds.Color(200, 100, 0);
+    color_2 = leds.Color(BRIGHTNESS, BRIGHTNESS / 2, 0);
   } else if (fixed_control) {
-    color_2 = leds.Color(0, 100, 200);
+    color_2 = leds.Color(0, BRIGHTNESS / 2, BRIGHTNESS);
   }
   leds.setPixelColor(0, color_2);
 
