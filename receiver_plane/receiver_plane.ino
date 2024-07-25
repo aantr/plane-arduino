@@ -12,7 +12,7 @@ Servo motor;
 const int motor_pin = 11;
 const int motor_max = 2300;
 const int motor_min = 1000;
-const int motor_restrict = 30; // [0, 100]
+const int motor_restrict = 100; // [0, 100]
 const bool need_calibration = true;
 
 void set_motor_value(int value){ // [0, 100]
@@ -69,6 +69,10 @@ public:
     current_time = time;
   }
 
+  void reset() {
+    timer = 0;
+  }
+
   bool expired(unsigned long time) {
     if (time == 0) {
       return false;
@@ -113,11 +117,11 @@ public:
   }
 
   void update() {
-    if (value != target) {
+    if (value != target && target != prev_value) {
       // update value
       auto time = millis();
       long long total = (time - prev_time) * speed / 1000;
-      if (total >= abs(target - prev_value)) {
+      if (speed == 0 || total >= abs(target - prev_value)) {
         value = target;
         return;
       }
@@ -135,7 +139,7 @@ void sound_dot() {
 }
 
 void sound_dash() {
-digitalWrite(sound_pin, HIGH);
+  digitalWrite(sound_pin, HIGH);
   delay(350); 
   digitalWrite(sound_pin, LOW);
   delay(50);
@@ -147,7 +151,7 @@ Timer led_timer;
 int led_timer_delay = 300;
 bool led_state = 0;
 
-SmoothValue motor_value(0, 50), side_value(0, 300), hight_value(0, 300);
+SmoothValue motor_value(0, 100), side_value(0, 0), hight_value(0, 0);
 const int state_timer_delay = 30; // ~ 30 fps
 
 // receiver state
@@ -157,6 +161,10 @@ uint8_t header_data = 0;
 uint8_t receiver_data[max_bytes] = {};
 int current_packet_size = 0;
 int current_control_sum = 0;
+
+// connection
+Timer connection_timer;
+const unsigned long connection_timeout = 1000;
 
 void setup() {
 
@@ -239,22 +247,26 @@ void setup() {
   sound_dot();
   sound_dot();
   Serial.println("Init ok");
+  connection_timer.reset();
 }
 
 void on_packet_received(int side, int hight, int motor) {
   side = side * 2 - 100;
   hight = hight * 2 - 100;
   motor = motor * 2 - 100;
-  Serial.print("Received: ");
-  Serial.print(side);
-  Serial.print(", ");
-  Serial.print(hight);
-  Serial.print(", ");
-  Serial.print(motor);
-  Serial.println();
   side_value.set(side);
   hight_value.set(hight);
   motor_value.set(motor);
+
+  // reset connection
+  connection_timer.update();
+  connection_timer.reset();
+}
+
+void set_default_state() {
+  side_value.set(0);
+  hight_value.set(0);
+  motor_value.set(0);
 }
 
 void read_header(uint8_t data) {
@@ -272,6 +284,7 @@ void loop() {
     digitalWrite(LED_BUILTIN, led_state);
   }
   if (setup_error) {
+    delay(5);
     return;
   }
   while (HC12.available()) {
@@ -315,6 +328,13 @@ void loop() {
     delay(5);
   }
 
+  // connection timer check if expired
+  connection_timer.update();
+  if (connection_timer.expired(connection_timeout)) {
+    set_default_state();
+    sound_dot();
+  }
+
   while (Serial.available()) {
     char byte = Serial.read();
     if (byte == 'M') {
@@ -355,4 +375,5 @@ then read data bytes, each from range [128, 256)
 then should be control sum of data bytes and header
 
 I send values in range [0, 100]
+
 */
