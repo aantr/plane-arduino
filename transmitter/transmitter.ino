@@ -52,10 +52,22 @@ const int button_pin_2 = 0;
 const int button_pin_3 = 13;
 const int button_pin_4 = 11;
 
-int get_button_state(int index){
+const int motor_restrict = 75; // [0, 100]
+
+Timer transmit_timer;
+const int transmitter_delay = 5;
+const int transmitter_timeout = 150;
+int transmitted_data = -1;
+int received_data = -1;
+int button_0_state = 0;
+int button_4_state = 0;
+int success = 1;
+int motor_lock = 0;
+
+int get_button_state(int index) {
   if (index == 0){
     return digitalRead(button_pin_0) ^ 1;
-  } else if (index == 1){
+  } else if (index == 1) {
     return analogRead(button_pin_1) < 512;
   } else if (index == 2) {
     return 0;
@@ -67,26 +79,37 @@ int get_button_state(int index){
   return 0;
 }
 
-int get_bounded_stick_value(int bound[3], int val){
+int get_bounded_stick_value(int bound[3], int val) {
   val = max(min(val, bound[2]), bound[0]);
   if (val >= bound[1]) return map(val, bound[1], bound[2], 0, 100);
   return map(val, bound[0], bound[1], -100, 0);
 }
 
-int get_left_horizontal(){
+int get_left_horizontal() {
   return get_bounded_stick_value(stick_bound[0], analogRead(stick_pin[0]));
 }
 
-int get_left_vertical(){
+int get_left_vertical() {
   return get_bounded_stick_value(stick_bound[1], analogRead(stick_pin[1]));
 }
 
-int get_right_horizontal(){
+int get_right_horizontal() {
   return get_bounded_stick_value(stick_bound[2], analogRead(stick_pin[2]));
 }
 
-int get_right_vertical(){
+int get_right_vertical() {
   return get_bounded_stick_value(stick_bound[3], analogRead(stick_pin[3]));
+}
+
+int get_motor_value() {
+  int result = get_left_vertical();
+  if (motor_lock != -1) {
+    result = motor_lock;
+  };
+  if (result > motor_restrict) {
+    result = motor_restrict;
+  }
+  return result;
 }
 
 void debug_state(){
@@ -163,17 +186,23 @@ void init_transmitter(){
   leds.clear();
   leds.show();
 
-  HC12.begin(9600);
+  HC12.begin(57600);
   pinMode(set_pin, OUTPUT);
 
   digitalWrite(set_pin, LOW);
   delay(100);
 
-  // AT+C019 - OK+C019
-  HC12.write("AT+C019");
+  // AT+C019 - OK+C001
+  HC12.write("AT+C001");
   delay(100);
-  if (readString(HC12) != String("OK+C019")) {
+  if (readString(HC12) != String("OK+C001")) {
     Serial.println("Problem while setting hc12 channel");
+    while (1) {}
+  }
+  HC12.write("AT+B57600");
+  delay(100);
+  if (readString(HC12) != String("OK+B57600")) {
+    Serial.println("Problem while setting hc12 baud rate");
     while (1) {}
   }
   digitalWrite(set_pin, HIGH);
@@ -182,13 +211,6 @@ void init_transmitter(){
   reset_neutral_stick();
 
 }
-
-Timer transmit_timer;
-const int transmitter_delay = 5;
-uint8_t transmitted_data = 0;
-uint8_t received_data = 0;
-uint8_t button_state = 0;
-uint8_t success = 0;
 
 void transmit_data() {
   int control_sum = 0;
@@ -208,7 +230,8 @@ void transmit_data() {
   control_sum = (control_sum + data) % 251;
   delay(transmitter_delay);
 
-  data = (1 << 7) + (get_left_vertical() + 100) / 2;
+  int left_vertical = get_motor_value();
+  data = (1 << 7) + (left_vertical + 100) / 2;
   HC12.write(data);
   control_sum = (control_sum + data) % 251;
   delay(transmitter_delay);
@@ -227,24 +250,37 @@ void update_transmitter() {
     Serial.println(read);
   }
   if (get_button_state(0)) {
-    if (button_state == 0) {
+    if (button_0_state == 0) {
+      if (motor_lock == -1) {
+        motor_lock = get_motor_value();
+      } else {
+        motor_lock = -1;
+      }
+    }
+    button_0_state = 1;
+  } else {
+    button_0_state = 0;
+  }
+  if (get_button_state(4)) {
+    if (button_4_state == 0) {
       reset_neutral_stick();
     }
-    button_state = 1;
+    button_4_state = 1;
   } else {
-    button_state = 0;
+    button_4_state = 0;
   }
   transmit_timer.update();
-  if (transmit_timer.expired(500)) {
-    if (received_data == transmitted_data) {
+  if (transmit_timer.expired(transmitter_timeout)) {
+    if (received_data != -1 && received_data == transmitted_data) {
       success = 2;
     } else {
       success = 1;
     }
-    received_data = 0;
+    received_data = -1;
     transmit_data();
   }
-  leds.setPixelColor(1, leds.Color(0, 0, 255 * button_state));
+  leds.setPixelColor(2, leds.Color(0, 255 * button_4_state, 0));
+  leds.setPixelColor(1, leds.Color(0, 0, 255 * (motor_lock != -1)));
   if (success == 0) {
     leds.setPixelColor(0, leds.Color(0, 0, 255));
   } else if (success == 1) {
