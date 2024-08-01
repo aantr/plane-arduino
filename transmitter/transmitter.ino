@@ -36,6 +36,9 @@ public:
 
 // transmitter setup
 
+#define REVERSE_HIGHT
+#define REVERSE_SIDE
+
 SoftwareSerial HC12(9, 10);
 const int set_pin = 12;
 
@@ -52,7 +55,7 @@ const int button_pin_2 = 0;
 const int button_pin_3 = 13;
 const int button_pin_4 = 11;
 
-const int motor_restrict = 75; // [0, 100]
+const int motor_restrict = 80; // [0, 100]
 
 Timer transmit_timer;
 const int transmitter_delay = 5;
@@ -94,11 +97,19 @@ int get_left_vertical() {
 }
 
 int get_right_horizontal() {
+#ifdef REVERSE_SIDE
+  return -1 * get_bounded_stick_value(stick_bound[2], analogRead(stick_pin[2]));
+#else
   return get_bounded_stick_value(stick_bound[2], analogRead(stick_pin[2]));
+#endif
 }
 
 int get_right_vertical() {
+#ifdef REVERSE_HIGHT
+  return -1 * get_bounded_stick_value(stick_bound[3], analogRead(stick_pin[3]));
+#else
   return get_bounded_stick_value(stick_bound[3], analogRead(stick_pin[3]));
+#endif
 }
 
 int get_motor_value() {

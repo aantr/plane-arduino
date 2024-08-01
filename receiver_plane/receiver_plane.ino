@@ -151,8 +151,8 @@ Timer led_timer;
 int led_timer_delay = 300;
 bool led_state = 0;
 
-SmoothValue motor_value(0, 100), side_value(0, 0), hight_value(0, 0);
-const int state_timer_delay = 30; // ~ 30 fps
+SmoothValue motor_value(0, 100), side_value(0, 750), hight_value(0, 750);
+const int state_timer_delay = 25; // ~ 40 fps
 
 // receiver state
 int receiver_state = -1; // -1 - wait for header, 0 - wait for control sum, x > 0 - number of bytes left
@@ -247,6 +247,8 @@ void setup() {
   sound_dot();
   sound_dot();
   Serial.println("Init ok");
+
+  connection_timer.update();
   connection_timer.reset();
 }
 
