@@ -1,0 +1,192 @@
+#include <Servo.h>
+#include <SPI.h>
+#include <LoRa.h>
+
+#define SYNC_WORD 0xF1
+
+const int PINS[] = {3, 5, 6, 9};
+// pins[0] - height, pins[1] - side, pins[2] - motor
+
+// MyServo height, side, motor;
+bool calibrate = false;
+
+int sign(int v) {
+  if (v > 0) return 1;
+  if (v < 0) return -1;
+  return 0;
+}
+
+class MyServo {
+  public:
+  Servo servo;
+  int pin = 0;
+  int bound[2] = {0, 255};
+
+  int current = bound[0];
+  int target = current;
+  unsigned long target_timer = millis();
+  unsigned long target_timeout = 1000 / 200;
+  bool degrees = true;
+
+  MyServo(int pin_, int bound_0, int bound_1, int target_timeout_, bool degrees_) {
+    pin = pin_;
+    bound[0] = bound_0;
+    bound[1] = bound_1;
+    target_timeout = target_timeout_;
+    degrees = degrees_;
+  } 
+
+  void init(int value) {
+    servo.attach(pin);
+    set_value(value);
+    set_target(value);
+    current = target;
+  }
+
+  void update() {
+
+    if (millis() - target_timer >= target_timeout){
+      int count = (millis() - target_timer) / target_timeout;
+      target_timer += target_timeout * count;
+      
+      if (sign(target - current)){
+        for (int i=0;i<count;i++){
+          current += sign(target - current);
+        }
+        set_value(current);
+      }
+    }
+
+  }
+
+  void set_value(int value) {
+    value = min(255, max(0, value));
+    int deg = (long long)(value) * (bound[1] - bound[0]) / 256 + bound[0];
+    if (degrees) {
+      servo.write(deg);
+    } else {
+      Serial.println(deg);
+      servo.writeMicroseconds(deg);
+    }
+  }
+
+  void set_target(int value) {
+    value = min(255, max(0, value));
+    target = value;
+  }
+
+  
+};
+
+// <0x,0x,0x>
+struct Packet {
+  bool damaged = false;
+  int values[3];
+  Packet () {
+    for (int i = 0; i < 3; i++) {
+      values[i] = 0;
+    }
+  }
+  Packet (String s) {
+    if (s.length() != 10 || s[0] != '<' || s[s.length() - 1] != '>') {
+      damaged = true;
+    } else if (s[3] != ',' || s[6] != ',') {
+      damaged = true;
+    } else {
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 2; j++) {
+          char c = s[1 + i * 3 + j];
+          if ('0' <= c && c <= '9' || 'a' <= c && c <= 'f') {
+            // pass
+          } else {
+            damaged = true;
+          }
+        }
+        values[i] = strtol(s.substring(1 + i * 3, 1 + i * 3 + 2).c_str(), NULL, 16);
+        values[i] = max(0, min(255, values[i]));
+      }
+    }
+  }
+
+  String getString() {
+    return String("<") + 
+    String(values[0], HEX) + String(",") + 
+    String(values[1], HEX) + String(",") + 
+    String(values[2], HEX) + 
+    String(">");
+  }
+};
+
+MyServo myservo_height(PINS[0], 45, 180 - 45, 1000 / 300, true);
+MyServo myservo_side(PINS[1], 45, 180 - 45, 1000 / 300, true);
+MyServo myservo_motor(PINS[2], 1100, 1500, 1000 / 300, false);
+
+void setup() {
+  // Serial setup 
+  Serial.begin(9600);
+  while (!Serial);
+
+  Serial.println("LoRa Receiver");
+
+  // Lora setup 
+  if (!LoRa.begin(433E6)) {
+    Serial.println("Starting LoRa failed!");
+    while (1);
+  }
+
+  LoRa.setSpreadingFactor(9);
+  LoRa.setSignalBandwidth(125E3);
+  LoRa.setCodingRate4(8);
+  LoRa.setSyncWord(SYNC_WORD);
+
+  // Servos setup 
+  myservo_height.init(128);
+  myservo_side.init(128);
+  myservo_motor.init(0);
+
+}
+
+void loop() {
+
+  myservo_height.update();
+  myservo_side.update();
+  myservo_motor.update();
+
+  // try to parse packet
+  int packetSize = LoRa.parsePacket();
+  String packetString = "";
+  if (packetSize) {
+    // received a packet
+    Serial.print("Received packet '");
+
+    // read packet
+    while (LoRa.available()) {
+      char c = (char)LoRa.read();
+      packetString += c;
+      Serial.print(c);
+    }
+
+    // print RSSI of packet
+    Serial.print("' with RSSI ");
+    Serial.println(LoRa.packetRssi());
+
+    Packet receivedPacket(packetString);
+    if (!receivedPacket.damaged) {
+      Serial.print("packet: ");
+      Serial.print(receivedPacket.values[0]);
+      Serial.print(receivedPacket.values[1]);
+      Serial.print(receivedPacket.values[2]);
+      Serial.println(packetString);
+
+      myservo_height.set_target(receivedPacket.values[0]);
+      myservo_side.set_target(receivedPacket.values[1]);
+      myservo_motor.set_target(receivedPacket.values[2]);
+
+    } else {
+      Serial.println("damaged packet!");
+    }
+  }
+
+  
+  delay(10);
+}
