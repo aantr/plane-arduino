@@ -82,7 +82,7 @@ void loop() {
     inputString += ",";
     inputString += byteToHex(min(255, max(0, (int) ps5.RStickX() + 0x80)));
     inputString += ",";
-    inputString += byteToHex(min(255, max(0, (int) ps5.LStickY())));
+    inputString += byteToHex(min(255, max(0, (int) ps5.LStickY() * 2)));
     inputString += ">";
     
     Serial.print("Sending - ");
