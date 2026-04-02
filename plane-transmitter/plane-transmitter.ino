@@ -31,6 +31,8 @@ void setup() {
   
   Serial.println("LoRa Initializing OK!");
 }
+
+String sending_string = "<80,80,00>";
  
 void loop() {
 
@@ -39,15 +41,19 @@ void loop() {
     String inputString = Serial.readStringUntil('\n');
     inputString.trim(); // Удаляем пробелы и символы перевода строки
 
-    Serial.print("Sending packet: ");
+    Serial.print("Set packet: ");
     Serial.println(inputString);
+    sending_string = inputString;
    
-    //Отправляем сообщение
-    LoRa.beginPacket();
-    LoRa.print(inputString);
-    LoRa.endPacket();
+    
        
   }
+  Serial.print("Sending packet: ");
+  Serial.println(sending_string);
+  //Отправляем сообщение
+  LoRa.beginPacket();
+  LoRa.print(sending_string);
+  LoRa.endPacket();
   
   
  
