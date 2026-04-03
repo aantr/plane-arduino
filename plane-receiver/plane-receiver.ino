@@ -4,11 +4,73 @@
 
 #define SYNC_WORD 0xF1
 
+// pins - height, - side, - motor
 const int PINS[] = {3, 5, 6, 9};
-// pins[0] - height, pins[1] - side, pins[2] - motor
 
-// MyServo height, side, motor;
+#define MIN_HEIGHT_DEGREE 45
+#define MAX_HEIGHT_DEGREE 180 - 45
+#define MIN_SIDE_DEGREE 45
+#define MAX_SIDE_DEGREE 180 - 45
+
+#define MAX_SIDE_DEGREE 180 - 45
+#define MAX_SIDE_DEGREE 180 - 45
+
+#define FAIL_SAFE_TIMEOUT 1000
+long long lastCorrectTime = millis();
+
+
 bool calibrate = false;
+
+// calibration
+#define ESC_PIN 6
+#define MAX_PULSE 1500  // Maximum throttle signal (µs)
+#define MIN_PULSE 1100  // Minimum throttle signal (µs)
+
+Servo myESC;
+
+void setup_calibrate() {
+  Serial.begin(9600);
+  myESC.attach(ESC_PIN, MIN_PULSE, MAX_PULSE); // Attach with defined limits
+
+  Serial.println("=== ESC Calibration Start ===");
+  Serial.println("Disconnect battery from ESC now.");
+  delay(2000);
+
+  // Step 1: Send max throttle signal
+  Serial.println("Sending MAX throttle signal (2000µs)...");
+  myESC.writeMicroseconds(MAX_PULSE);
+  delay(3000); // Wait for user to connect battery
+
+  // --- CRITICAL STEP: CONNECT THE LIPO BATTERY TO THE ESC NOW ---
+  Serial.println(">>> CONNECT THE LIPO BATTERY TO THE ESC NOW <<<");
+  delay(5000); // Give time for ESC to read max signal and beep
+
+  // Step 2: Send min throttle signal to set low endpoint
+  Serial.println("Sending MIN throttle signal (1000µs)...");
+  myESC.writeMicroseconds(MIN_PULSE);
+  delay(3000); // Wait for final confirmation beeps
+
+  Serial.println("=== Calibration Complete! ===");
+  Serial.println("You can now use the Serial Monitor to test.");
+  Serial.println("Enter a value between 0 and 100.");
+}
+
+void loop_calibrate() {
+  if (Serial.available() > 0) {
+    int throttlePercent = Serial.parseInt();
+    throttlePercent = constrain(throttlePercent, 0, 100); // Clamp value
+
+    int pulseWidth = map(throttlePercent, 0, 100, MIN_PULSE, MAX_PULSE);
+    myESC.writeMicroseconds(pulseWidth);
+
+    Serial.print("Throttle set to: ");
+    Serial.print(throttlePercent);
+    Serial.print("% (");
+    Serial.print(pulseWidth);
+    Serial.println("µs)");
+  }
+  delay(10);
+}
 
 int sign(int v) {
   if (v > 0) return 1;
@@ -79,9 +141,15 @@ class MyServo {
 };
 
 // <0x,0x,0x>
+
+#define PACKET_SIZE 10
+#define PACKET_START_SYMBOL '<'
+#define PACKET_END_SYMBOL '>'
+
 struct Packet {
   bool damaged = false;
   int values[3];
+  
   Packet () {
     for (int i = 0; i < 3; i++) {
       values[i] = 0;
@@ -117,9 +185,10 @@ struct Packet {
   }
 };
 
-MyServo myservo_height(PINS[0], 45, 180 - 45, 1000 / 300, true);
-MyServo myservo_side(PINS[1], 45, 180 - 45, 1000 / 300, true);
-MyServo myservo_motor(PINS[2], 1100, 1500, 1000 / 300, false);
+// servo setup
+MyServo myservo_height(PINS[0], MIN_HEIGHT_DEGREE, MAX_HEIGHT_DEGREE, 1000 / 300, true);
+MyServo myservo_side(PINS[1], MIN_SIDE_DEGREE, MAX_SIDE_DEGREE, 1000 / 300, true);
+MyServo myservo_motor(PINS[2], MIN_PULSE, MAX_PULSE, 1000 / 300, false);
 
 void setup() {
   // Serial setup 
@@ -144,13 +213,30 @@ void setup() {
   myservo_side.init(128);
   myservo_motor.init(0);
 
+  if (calibrate) {
+    setup_calibrate();
+  }
+
 }
 
 void loop() {
 
+  if (calibrate) {
+    loop_calibrate();
+    return;
+  }
+  
+  // update all
+  
   myservo_height.update();
   myservo_side.update();
   myservo_motor.update();
+
+  if (millis() - lastCorrectTime > FAIL_SAFE_TIMEOUT) { // failsafe
+     myservo_height.set_target(0x80);
+     myservo_side.set_target(0x80);
+     myservo_motor.set_target(0);
+  }
 
   // try to parse packet
   int packetSize = LoRa.parsePacket();
@@ -160,33 +246,39 @@ void loop() {
     Serial.print("Received packet '");
 
     // read packet
+    Packet lastCorrectPacket(packetString);
     while (LoRa.available()) {
       char c = (char)LoRa.read();
       packetString += c;
       Serial.print(c);
+      if (c == PACKET_END_SYMBOL) {
+        Packet receivedPacket = Packet(packetString.substring(packetString.length() - PACKET_SIZE, packetString.length()));
+        if (!receivedPacket.damaged) {
+          lastCorrectPacket = receivedPacket;
+        }
+      }
     }
 
     // print RSSI of packet
     Serial.print("' with RSSI ");
     Serial.println(LoRa.packetRssi());
 
-    Packet receivedPacket(packetString);
-    if (!receivedPacket.damaged) {
+    if (!lastCorrectPacket.damaged) {
       Serial.print("packet: ");
-      Serial.print(receivedPacket.values[0]);
-      Serial.print(receivedPacket.values[1]);
-      Serial.print(receivedPacket.values[2]);
+      Serial.print(lastCorrectPacket.values[0]);
+      Serial.print(lastCorrectPacket.values[1]);
+      Serial.print(lastCorrectPacket.values[2]);
       Serial.println(packetString);
 
-      myservo_height.set_target(receivedPacket.values[0]);
-      myservo_side.set_target(receivedPacket.values[1]);
-      myservo_motor.set_target(receivedPacket.values[2]);
+      myservo_height.set_target(lastCorrectPacket.values[0]);
+      myservo_side.set_target(lastCorrectPacket.values[1]);
+      myservo_motor.set_target(lastCorrectPacket.values[2]);
+
+      lastCorrectTime = millis();
 
     } else {
       Serial.println("damaged packet!");
     }
   }
-
-  
   delay(10);
 }
