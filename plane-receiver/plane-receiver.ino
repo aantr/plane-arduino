@@ -22,7 +22,7 @@ long long lastCorrectTime = millis();
 bool calibrate = false;
 
 // calibration
-#define ESC_PIN 6
+#define ESC_PIN PINS[2]
 #define MAX_PULSE 1500  // Maximum throttle signal (µs)
 #define MIN_PULSE 1100  // Minimum throttle signal (µs)
 
