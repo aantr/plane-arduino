@@ -12,12 +12,8 @@ const int PINS[] = {3, 5, 6, 9};
 #define MIN_SIDE_DEGREE 45
 #define MAX_SIDE_DEGREE 180 - 45
 
-#define MAX_SIDE_DEGREE 180 - 45
-#define MAX_SIDE_DEGREE 180 - 45
-
 #define FAIL_SAFE_TIMEOUT 1000
 long long lastCorrectTime = millis();
-
 
 bool calibrate = false;
 
