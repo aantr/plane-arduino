@@ -43,10 +43,7 @@ void loop() {
 
     Serial.print("Set packet: ");
     Serial.println(inputString);
-    sending_string = inputString;
-   
-    
-       
+    sending_string = inputString;    
   }
   Serial.print("Sending packet: ");
   Serial.println(sending_string);
