@@ -199,8 +199,8 @@ void setup() {
     while (1);
   }
 
-  LoRa.setSpreadingFactor(9);
-  LoRa.setSignalBandwidth(125E3);
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(126E3);
   LoRa.setCodingRate4(8);
   LoRa.setSyncWord(SYNC_WORD);
 
