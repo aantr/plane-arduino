@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include <Bluepad32.h>
 
 // Define the signal pin and pulse width limits
 #define ESC_PIN 6

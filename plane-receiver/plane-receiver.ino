@@ -33,7 +33,7 @@ void setup_calibrate() {
   delay(2000);
 
   // Step 1: Send max throttle signal
-  Serial.println("Sending MAX throttle signal (2000µs)...");
+  Serial.println("Sending MAX throttle signal...");
   myESC.writeMicroseconds(MAX_PULSE);
   delay(3000); // Wait for user to connect battery
 
@@ -42,7 +42,7 @@ void setup_calibrate() {
   delay(5000); // Give time for ESC to read max signal and beep
 
   // Step 2: Send min throttle signal to set low endpoint
-  Serial.println("Sending MIN throttle signal (1000µs)...");
+  Serial.println("Sending MIN throttle signal...");
   myESC.writeMicroseconds(MIN_PULSE);
   delay(3000); // Wait for final confirmation beeps
 

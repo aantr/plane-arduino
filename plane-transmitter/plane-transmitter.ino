@@ -18,14 +18,14 @@ void setup() {
   LoRa.setPins(ss, rst, dio0);
   
   //замените LoRa.begin(---E-) частотой, которую вы собираетесь использовать 
-  while (!LoRa.begin(433E6)) {
+  while (!LoRa.begin(915E6)) {
     Serial.println(".");
     delay(500);
   }
 
   LoRa.setTxPower(17);
-  LoRa.setSpreadingFactor(9);
-  LoRa.setSignalBandwidth(125E3);
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(126E3);
   LoRa.setCodingRate4(8);
   LoRa.setSyncWord(0xF1);
   
@@ -50,9 +50,11 @@ void loop() {
   //Отправляем сообщение
   LoRa.beginPacket();
   LoRa.print(sending_string);
+  LoRa.print("#");
+  LoRa.print(counter++);
   LoRa.endPacket();
   
   
  
-  delay(50);
+  delay(100);
 }
