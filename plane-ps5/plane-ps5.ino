@@ -10,6 +10,10 @@
 #define RST 14
 #define DIO0 2
 
+//#define INV_HEIGHT
+#define INV_SIDE
+#define INV_MOTOR
+
 // start gamepad
 
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
@@ -87,12 +91,28 @@ void processGamepad(ControllerPtr ctl) {
 //    ctl->axisRX(),       // (-511 - 512) right X axis
 //    ctl->axisRY(),       // (-511 - 512) right Y axis
 
+    int heightValue = (int) ctl->axisRY() / 4 + 0x80;
+    #ifdef INV_HEIGHT
+    heightValue = -(int) ctl->axisRY() / 4 + 0x80;
+    #endif
+    int sideValue = (int) ctl->axisRX() / 4 + 0x80;
+    #ifdef INV_SIDE
+    sideValue = -(int) ctl->axisRX() / 4 + 0x80;
+    #endif
+    int motorValue = (int) ctl->axisY() / 2;
+    #ifdef INV_SIDE
+    motorValue = -(int) ctl->axisY() / 2;
+    #endif
+    if (motorValue < 0x10) {
+      motorValue = 0;
+    }
+
     String inputString = "<";
-    inputString += byteToHex(min(255, max(0, (int) ctl->axisRY() / 4 + 0x80)));
+    inputString += byteToHex(min(255, max(0, heightValue)));
     inputString += ",";
-    inputString += byteToHex(min(255, max(0, (int) ctl->axisRX() / 4 + 0x80)));
+    inputString += byteToHex(min(255, max(0, sideValue)));
     inputString += ",";
-    inputString += byteToHex(min(255, max(0, (int) ctl->axisY() / 2)));
+    inputString += byteToHex(min(255, max(0, motorValue)));
     inputString += ">";
     
     Serial.print("Sending - ");
@@ -116,6 +136,7 @@ void processControllers() {
             }
         }
     }
+    Serial.println("No controller");
 }
 
 
