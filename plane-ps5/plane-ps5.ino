@@ -14,6 +14,9 @@
 #define INV_SIDE
 #define INV_MOTOR
 
+bool halfMotor = false;
+bool pressedHalfMotor = false;
+
 // start gamepad
 
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
@@ -91,6 +94,25 @@ void processGamepad(ControllerPtr ctl) {
 //    ctl->axisRX(),       // (-511 - 512) right X axis
 //    ctl->axisRY(),       // (-511 - 512) right Y axis
 
+    int currentHalfMotor = ctl->throttle();
+    if (currentHalfMotor > 900) {
+      if (pressedHalfMotor == false) {
+        halfMotor = !halfMotor;
+        if (halfMotor) {
+          int led = 4;
+          ctl->setPlayerLEDs(led & 0x0f);
+          ctl->playDualRumble(0 /* delayedStartMs */, 1000 /* durationMs */, 0x80 /* weakMagnitude */,
+                            0xA0 /* strongMagnitude */);
+        } else {
+          int led = 1;
+          ctl->setPlayerLEDs(led & 0x0f);
+        }
+      }
+      pressedHalfMotor = true;
+    } else if (currentHalfMotor < 800) {
+      pressedHalfMotor = false;
+    }
+
     int heightValue = (int) ctl->axisRY() / 4 + 0x80;
     #ifdef INV_HEIGHT
     heightValue = -(int) ctl->axisRY() / 4 + 0x80;
@@ -103,6 +125,12 @@ void processGamepad(ControllerPtr ctl) {
     #ifdef INV_SIDE
     motorValue = -(int) ctl->axisY() / 2;
     #endif
+
+    if (halfMotor) {
+      motorValue += 256;
+      motorValue /= 2;
+    }
+    
     if (motorValue < 0x10) {
       motorValue = 0;
     }
