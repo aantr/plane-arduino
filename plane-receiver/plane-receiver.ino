@@ -1,4 +1,4 @@
-#include <Servo.h>
+  #include <Servo.h>
 #include <SPI.h>
 #include <LoRa.h>
 
@@ -182,9 +182,9 @@ struct Packet {
 };
 
 // servo setup
-MyServo myservo_height(PINS[0], MIN_HEIGHT_DEGREE, MAX_HEIGHT_DEGREE, 1000 / 300, true);
-MyServo myservo_side(PINS[1], MIN_SIDE_DEGREE, MAX_SIDE_DEGREE, 1000 / 300, true);
-MyServo myservo_motor(PINS[2], MIN_PULSE, MAX_PULSE, 1000 / 300, false);
+MyServo myservo_height(PINS[0], MIN_HEIGHT_DEGREE, MAX_HEIGHT_DEGREE, 1000 / 1000, true);
+MyServo myservo_side(PINS[1], MIN_SIDE_DEGREE, MAX_SIDE_DEGREE, 1000 / 1000, true);
+MyServo myservo_motor(PINS[2], MIN_PULSE, MAX_PULSE, 1000 / 1000, false);
 
 void setup() {
   // Serial setup 
@@ -203,7 +203,7 @@ void setup() {
   LoRa.setSignalBandwidth(126E3);
   LoRa.setCodingRate4(8);
   LoRa.setSyncWord(SYNC_WORD);
-
+  
   // Servos setup 
   myservo_height.init(128);
   myservo_side.init(128);

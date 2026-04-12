@@ -224,6 +224,6 @@ void loop() {
   bool dataUpdated = BP32.update();
   processControllers();
 
-  delay(50);
+  delay(35);
   
 }
