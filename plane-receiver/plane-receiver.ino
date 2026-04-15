@@ -2,6 +2,10 @@
 #include <SPI.h>
 #include <LoRa.h>
 
+#define CONNECTION_MSG_TIMEOUT 300
+long long connection_timer = millis();
+int lastRssi = 0;
+
 #define SYNC_WORD 0xF1
 
 // pins - height, - side, - motor
@@ -182,9 +186,9 @@ struct Packet {
 };
 
 // servo setup
-MyServo myservo_height(PINS[0], MIN_HEIGHT_DEGREE, MAX_HEIGHT_DEGREE, 1000 / 300, true);
-MyServo myservo_side(PINS[1], MIN_SIDE_DEGREE, MAX_SIDE_DEGREE, 1000 / 300, true);
-MyServo myservo_motor(PINS[2], MIN_PULSE, MAX_PULSE, 1000 / 300, false);
+MyServo myservo_height(PINS[0], MIN_HEIGHT_DEGREE, MAX_HEIGHT_DEGREE, 1000 / 1000, true);
+MyServo myservo_side(PINS[1], MIN_SIDE_DEGREE, MAX_SIDE_DEGREE, 1000 / 1000, true);
+MyServo myservo_motor(PINS[2], MIN_PULSE, MAX_PULSE, 1000 / 1000, false);
 
 void setup() {
   // Serial setup 
@@ -199,6 +203,7 @@ void setup() {
     while (1);
   }
 
+  LoRa.setTxPower(17);
   LoRa.setSpreadingFactor(7);
   LoRa.setSignalBandwidth(126E3);
   LoRa.setCodingRate4(8);
@@ -234,6 +239,13 @@ void loop() {
      myservo_motor.set_target(0);
   }
 
+  if (millis() - connection_timer > CONNECTION_MSG_TIMEOUT) { // connection message
+     String message = "<";
+     message += lastRssi;
+     message += ">";
+     // todo: send the message 
+  }
+
   // try to parse packet
   int packetSize = LoRa.parsePacket();
   String packetString = "";
@@ -258,6 +270,7 @@ void loop() {
     // print RSSI of packet
     Serial.print("' with RSSI ");
     Serial.println(LoRa.packetRssi());
+    lastRssi = LoRa.packetRssi();
 
     if (!lastCorrectPacket.damaged) {
       Serial.print("packet: ");
