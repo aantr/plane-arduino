@@ -1,4 +1,4 @@
-#include <Servo.h>
+  #include <Servo.h>
 #include <SPI.h>
 #include <LoRa.h>
 
@@ -208,7 +208,7 @@ void setup() {
   LoRa.setSignalBandwidth(126E3);
   LoRa.setCodingRate4(8);
   LoRa.setSyncWord(SYNC_WORD);
-
+  
   // Servos setup 
   myservo_height.init(128);
   myservo_side.init(128);
