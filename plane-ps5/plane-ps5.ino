@@ -17,6 +17,10 @@
 bool halfMotor = false;
 bool pressedHalfMotor = false;
 
+#define CONNECTION_MSG_TIMEOUT 300
+long long connection_timer = millis();
+int connectionValue = 0;
+
 // start gamepad
 
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
@@ -87,7 +91,7 @@ void processGamepad(ControllerPtr ctl) {
     // See how the different "dump*" functions dump the Controller info.
     // dumpGamepad(ctl);
 
-    ctl->setColorLED(255, 0, 0);
+    ctl->setColorLED(255 - connectionValue, connectionValue, 0);
 
 //    ctl->axisX(),        // (-511 - 512) left X Axis
 //    ctl->axisY(),        // (-511 - 512) left Y axis
@@ -223,6 +227,36 @@ void loop() {
 
   bool dataUpdated = BP32.update();
   processControllers();
+
+  if (millis() - connection_timer > CONNECTION_MSG_TIMEOUT) { // connection message
+    connection_timer = millis();
+    connectionValue = 0;
+  }
+
+  int packetSize = LoRa.parsePacket();
+  String packetString = "";
+  if (packetSize) {
+    // received a packet
+    Serial.print("Received packet '");
+
+    // read packet
+    Packet lastCorrectPacket(packetString);
+    while (LoRa.available()) {
+      char c = (char)LoRa.read();
+      packetString += c;
+      Serial.print(c);
+
+    }
+
+    Serial.print("' with RSSI ");
+    Serial.println(LoRa.packetRssi());
+
+    if (packetString.length() == 4) {
+
+      connection_timer = millis();
+
+    } 
+  }
 
   delay(35);
   

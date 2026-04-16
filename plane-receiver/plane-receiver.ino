@@ -78,6 +78,12 @@ int sign(int v) {
   return 0;
 }
 
+String byteToHex(byte b) {
+  char hex[3];
+  sprintf(hex, "%02x", b);
+  return String(hex);
+}
+
 class MyServo {
   public:
   Servo servo;
@@ -234,16 +240,23 @@ void loop() {
   myservo_motor.update();
 
   if (millis() - lastCorrectTime > FAIL_SAFE_TIMEOUT) { // failsafe
-     myservo_height.set_target(0x80);
-     myservo_side.set_target(0x80);
-     myservo_motor.set_target(0);
+    myservo_height.set_target(0x80);
+    myservo_side.set_target(0x80);
+    myservo_motor.set_target(0);
   }
 
   if (millis() - connection_timer > CONNECTION_MSG_TIMEOUT) { // connection message
-     String message = "<";
-     message += lastRssi;
-     message += ">";
-     // todo: send the message 
+    connection_timer = millis();
+    int connectionValue = map(lastRssi, -90, -30, 0, 255);
+    connectionValue = constrain(connectionValue, 0, 255);
+
+    String message = "<";
+    message += byteToHex(connectionValue);
+    message += ">";
+
+    LoRa.beginPacket();
+    LoRa.print(message);
+    LoRa.endPacket();
   }
 
   // try to parse packet
