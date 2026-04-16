@@ -240,7 +240,6 @@ void loop() {
     Serial.print("Received packet '");
 
     // read packet
-    Packet lastCorrectPacket(packetString);
     while (LoRa.available()) {
       char c = (char)LoRa.read();
       packetString += c;
