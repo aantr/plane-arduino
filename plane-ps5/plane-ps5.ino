@@ -17,7 +17,7 @@
 bool halfMotor = false;
 bool pressedHalfMotor = false;
 
-#define CONNECTION_MSG_TIMEOUT 300
+#define CONNECTION_MSG_TIMEOUT 1000
 long long connection_timer = millis();
 int connectionValue = 0;
 
@@ -253,7 +253,7 @@ void loop() {
     if (packetString.length() == 4) {
 
       connection_timer = millis();
-      connectionValue = map(lastRssi, -90, -30, 0, 255);
+      connectionValue = map(LoRa.packetRssi(), -90, -30, 0, 255);
       connectionValue = constrain(connectionValue, 0, 255);
     } 
   }
