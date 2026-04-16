@@ -4,7 +4,7 @@
 
 #define CONNECTION_MSG_TIMEOUT 300
 long long connection_timer = millis();
-int lastRssi = 0;
+int lastRssi = -100;
 
 #define SYNC_WORD 0xF1
 
