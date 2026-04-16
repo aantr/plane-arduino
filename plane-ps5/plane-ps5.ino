@@ -253,7 +253,8 @@ void loop() {
     if (packetString.length() == 4) {
 
       connection_timer = millis();
-
+      connectionValue = map(lastRssi, -90, -30, 0, 255);
+      connectionValue = constrain(connectionValue, 0, 255);
     } 
   }
 
